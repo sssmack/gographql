@@ -18,7 +18,7 @@ type Arg struct {
 
 var (
 	componentName     *string
-	inputObjectMapper = NewMapper()
+	inputObjectMapper = newMapper()
 )
 
 type HTMLinfo struct {
@@ -195,7 +195,7 @@ func MarshalInputObject(i interface{}) (inputObject *graphql.InputObject, form *
 	return input, form, err
 }
 
-func (m Mapper) marshalInputObject(i interface{}, fieldName *string, form *strings.Builder, crumbs string, sliceIndex *string) (inputObject *graphql.InputObject, thisDataMap interface{}, err error) {
+func (m objectMap) marshalInputObject(i interface{}, fieldName *string, form *strings.Builder, crumbs string, sliceIndex *string) (inputObject *graphql.InputObject, thisDataMap interface{}, err error) {
 	thisDataMap = map[string]interface{}{}
 	var (
 		structType reflect.Type
@@ -369,7 +369,7 @@ func (m Mapper) marshalInputObject(i interface{}, fieldName *string, form *strin
 	return inputObject, thisDataMap, nil
 }
 
-func (m Mapper) goToGraphInput(structField reflect.StructField, structName string, htmlInfo HTMLinfo, crumbs string) (input graphql.Input, dataMap interface{}, err error) {
+func (m objectMap) goToGraphInput(structField reflect.StructField, structName string, htmlInfo HTMLinfo, crumbs string) (input graphql.Input, dataMap interface{}, err error) {
 	dataMap = map[string]interface{}{}
 	Type := structField.Type
 	isPtr := false

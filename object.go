@@ -24,7 +24,7 @@ var (
 	REstub             = regexp.MustCompile(`(.*)Stub`)
 	RElist             = regexp.MustCompile(`\[(.*)\]`)
 	REtype             = regexp.MustCompile(` [\[\]\*](.*)`)
-	objectMapper       = NewMapper()
+	objectMapper       = newMapper()
 	SubstitutedTypeKey = "substitutedType"
 )
 
@@ -38,7 +38,7 @@ type Input struct {
 	dataMap interface{}
 }
 
-type Mapper struct {
+type objectMap struct {
 	allObjectTypes      map[string]*graphql.Object
 	allInputObjectTypes map[string]Input
 	parentTypes         map[string]bool
@@ -70,8 +70,8 @@ func SetDescription(i interface{}, fieldName, text string) {
 	}
 }
 
-func NewMapper() *Mapper {
-	mapper := &Mapper{
+func newMapper() (mapper objectMap) {
+	mapper = objectMap{
 		allObjectTypes:      map[string]*graphql.Object{},
 		allInputObjectTypes: map[string]Input{},
 		parentTypes:         map[string]bool{},
@@ -85,11 +85,11 @@ func NewMapper() *Mapper {
 	return mapper
 }
 
-func (mapper *Mapper) SetGraphQLFields(fields map[string]graphql.FieldResolveFn) {
+func (mapper *objectMap) SetGraphQLFields(fields map[string]graphql.FieldResolveFn) {
 	mapper.substituedTypes = fields
 }
 
-func (mapper *Mapper) SetTypeRegistryProvider(provider TypeReflector) {
+func (mapper *objectMap) SetTypeRegistryProvider(provider TypeReflector) {
 	mapper.typeReflector = provider
 }
 
@@ -99,7 +99,7 @@ func GetType(name string) (object *graphql.Object) {
 	return
 }
 
-func (m Mapper) prefix() string {
+func (m objectMap) prefix() string {
 	return string(m.indentBuf[0 : 3*m.level])
 }
 
@@ -121,10 +121,10 @@ func MarshalObject(i interface{}) (object *graphql.Object, err error) {
 	if nil == objectMapper.typeReflector {
 		log.Warn("The typeReflector is nil")
 	}
-	return objectMapper.makeObject(i)
+	return makeObject(objectMapper, i)
 }
 
-func (mapper Mapper) makeObject(i interface{}) (object *graphql.Object, err error) {
+func makeObject(mapper objectMap, i interface{}) (object *graphql.Object, err error) {
 	structType, ok := i.(reflect.Type)
 	if !ok {
 		structType = reflect.TypeOf(i)
@@ -316,7 +316,7 @@ func (mapper Mapper) makeObject(i interface{}) (object *graphql.Object, err erro
 	mapper.allObjectTypes[thisStructName] = object
 	return object, nil
 }
-func (mapper Mapper) faceToGraph(Type reflect.Type) (output graphql.Output, err error) {
+func (mapper objectMap) faceToGraph(Type reflect.Type) (output graphql.Output, err error) {
 	methodCount := Type.NumMethod()
 	if 0 == methodCount {
 		err := errors.New("IGNORING" + Type.Name() + "; the interface is empty.")
@@ -331,7 +331,7 @@ func (mapper Mapper) faceToGraph(Type reflect.Type) (output graphql.Output, err 
 		return output, err
 	}
 	typeName := listWords[1]
-	object, err := mapper.makeObject(mapper.typeReflector.GetReflectType(typeName))
+	object, err := makeObject(mapper, mapper.typeReflector.GetReflectType(typeName))
 	if nil != err {
 		log.Println(mapper.prefix(), err)
 		return object, err
@@ -339,7 +339,7 @@ func (mapper Mapper) faceToGraph(Type reflect.Type) (output graphql.Output, err 
 	return object, err
 }
 
-func (mapper Mapper) goToGraph(structField reflect.StructField, structName string) (output graphql.Output, face bool, err error) {
+func (mapper objectMap) goToGraph(structField reflect.StructField, structName string) (output graphql.Output, face bool, err error) {
 	Type := structField.Type
 	isPtr := false
 	if Type.Kind() == reflect.Ptr {
@@ -382,7 +382,7 @@ func (mapper Mapper) goToGraph(structField reflect.StructField, structName strin
 			return graphql.String, false, err
 			//return Null, false, err
 		}
-		output, err = mapper.makeObject(t)
+		output, err = makeObject(mapper, t)
 		if nil != err {
 			return
 		}
@@ -399,7 +399,7 @@ func (mapper Mapper) goToGraph(structField reflect.StructField, structName strin
 				output = graphql.NewList(Null)
 				return
 			}
-			output, err = mapper.makeObject(t)
+			output, err = makeObject(mapper, t)
 			if nil != err {
 				log.Println(mapper.prefix(), err)
 				return
@@ -447,7 +447,7 @@ func (mapper Mapper) goToGraph(structField reflect.StructField, structName strin
 	return scalar, face, err
 }
 
-func (m *Mapper) goToGraphqlScalar(kind reflect.Kind, fieldName string, htmlInfo *HTMLinfo, crumbs string, sliceIndex *string) (scalar *graphql.Scalar, init interface{}, err error) {
+func (m *objectMap) goToGraphqlScalar(kind reflect.Kind, fieldName string, htmlInfo *HTMLinfo, crumbs string, sliceIndex *string) (scalar *graphql.Scalar, init interface{}, err error) {
 
 	crumbs = crumbs + "." + fieldName
 	if nil != sliceIndex {
