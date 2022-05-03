@@ -13,7 +13,7 @@ import (
 	"github.com/vmware/govmomi/property"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
-	"gitlab.issaccorp.net/mda/vipr2/auth"
+	"gitlab.issaccorp.net/mda/controltower/vipr/auth"
 )
 
 // Face resolves the 1st function of an interface and returns the function's value(s)
