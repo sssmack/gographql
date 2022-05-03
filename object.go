@@ -13,13 +13,13 @@ import (
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/spf13/viper"
-	"gitlab.issaccorp.net/mda/vipr2/mylogger"
+	"gitlab.issaccorp.net/mda/tower/logger"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 var (
-	log                = mylogger.Log
+	log                = logger.DefaultLogger
 	REmor              = regexp.MustCompile(`.*ManagedObjectReference.*`)
 	REstub             = regexp.MustCompile(`(.*)Stub`)
 	RElist             = regexp.MustCompile(`\[(.*)\]`)
@@ -50,6 +50,10 @@ type objectMap struct {
 	typeInstance        uint64
 	substituedTypes     map[string]graphql.FieldResolveFn
 	typeReflector       TypeReflector
+}
+
+func SetLogger(l logger.Logger) {
+	*Log = l
 }
 
 // Use Setdescription() when the package having the Go structure is not
