@@ -53,7 +53,7 @@ type objectMap struct {
 }
 
 func SetLogger(l logger.Logger) {
-	*Log = l
+	*log = l
 }
 
 // Use Setdescription() when the package having the Go structure is not
