@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/graphql-go/graphql"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 )
 
@@ -60,12 +61,19 @@ func GetInputType(name string) (inputObject *graphql.InputObject, err error) {
 //    There are optional struct field tags that that may be used to affect the outcome.
 //       if the "description" tag is found, the Description field of the object is assigned its value.
 func MarshalInputObject(i interface{}) (inputObject *graphql.InputObject, form *strings.Builder, err error) {
-	logLevel := log.GetLevel()
-	defer func() { log.SetLevel(logLevel) }()
 	goToGraphqlLogLevel := viper.GetString("goToGraphqlLogLevel")
-	err = log.SetLevel(goToGraphqlLogLevel)
-	if nil != err {
-		return
+	if 0 < len(goToGraphqlLogLevel) {
+		if level, err := log.ParseLevel(goToGraphqlLogLevel); nil != err {
+			logLevel := log.GetLevel()
+			log.SetLevel(level)
+			if nil != err {
+				log.Error(err)
+			} else {
+				defer func() { log.SetLevel(logLevel) }()
+			}
+		} else {
+			log.Error(err)
+		}
 	}
 	var (
 		structType reflect.Type

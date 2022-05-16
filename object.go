@@ -13,24 +13,17 @@ import (
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/spf13/viper"
-	"gitlab.issaccorp.net/mda/tower/logger"
 
+	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 var (
-	log                = logger.DefaultLogger
-	REmor              = regexp.MustCompile(`.*ManagedObjectReference.*`)
-	REstub             = regexp.MustCompile(`(.*)Stub`)
-	RElist             = regexp.MustCompile(`\[(.*)\]`)
-	REtype             = regexp.MustCompile(` [\[\]\*](.*)`)
-	objectMapper       = newMapper()
-	SubstitutedTypeKey = "substitutedType"
+	REstub       = regexp.MustCompile(`(.*)Stub`)
+	RElist       = regexp.MustCompile(`\[(.*)\]`)
+	REtype       = regexp.MustCompile(` [\[\]\*](.*)`)
+	objectMapper = newMapper()
 )
-
-type TypeReflector interface {
-	GetReflectType(string) reflect.Type
-}
 
 type Input struct {
 	object  *graphql.InputObject
@@ -48,12 +41,6 @@ type objectMap struct {
 	indexValues         string
 	sliceDepth          uint
 	typeInstance        uint64
-	substituedTypes     map[string]graphql.FieldResolveFn
-	typeReflector       TypeReflector
-}
-
-func SetLogger(l logger.Logger) {
-	*log = l
 }
 
 // Use Setdescription() when the package having the Go structure is not
@@ -89,14 +76,6 @@ func newMapper() (mapper objectMap) {
 	return mapper
 }
 
-func (mapper *objectMap) SetGraphQLFields(fields map[string]graphql.FieldResolveFn) {
-	mapper.substituedTypes = fields
-}
-
-func (mapper *objectMap) SetTypeRegistryProvider(provider TypeReflector) {
-	mapper.typeReflector = provider
-}
-
 // GetType returns either nil or the object known by name.
 func GetType(name string) (object *graphql.Object) {
 	object = objectMapper.allObjectTypes[name]
@@ -114,16 +93,17 @@ func (m objectMap) prefix() string {
 //       if the "description" tag is found, the Description field of the object is assigned its value.
 //       if the "mor" tag is found, reflection for the field will be done using its value, which is the type of a struct. That is in contrast with the normal path of processing which is to reflect on the type of the field.
 func MarshalObject(i interface{}) (object *graphql.Object, err error) {
-	logLevel := log.GetLevel()
-	defer func() { log.SetLevel(logLevel) }()
 	goToGraphqlLogLevel := viper.GetString("goToGraphqlLogLevel")
-	err = log.SetLevel(goToGraphqlLogLevel)
-	if nil != err {
-		return
-	}
-	// log.SetFlags(log.Llongfile | log.LstdFlags)
-	if nil == objectMapper.typeReflector {
-		log.Warn("The typeReflector is nil")
+	if 0 < len(goToGraphqlLogLevel) {
+		logLevel := log.GetLevel()
+		if level, err := log.ParseLevel(goToGraphqlLogLevel); nil == err {
+			log.SetLevel(level)
+			if nil != err {
+				log.Error(err)
+			} else {
+				defer log.SetLevel(logLevel)
+			}
+		}
 	}
 	return makeObject(objectMapper, i)
 }
@@ -203,8 +183,8 @@ func makeObject(mapper objectMap, i interface{}) (object *graphql.Object, err er
 						isList = true
 					}
 					typeNameWords := REstub.FindStringSubmatch(typeName)
-					if 2 > len(typeNameWords) {
-						continue // this field is not a stubbed type.
+					if nil == typeNameWords {
+						continue // this type name is not a stubbed type.
 					}
 					log.Println("typeNameWords is:", typeNameWords)
 					targetObject := object
@@ -229,12 +209,6 @@ func makeObject(mapper objectMap, i interface{}) (object *graphql.Object, err er
 			mapper.parentTypes = map[string]bool{}
 		}
 	}()
-	/*
-		if fieldType, exists := m.allObjectTypes[thisStructName]; exists {
-			log.Warn(m.prefix(), "This type has already been defined, am using it, and its definition may be different!", thisStructName)
-			return fieldType, nil
-		}
-	*/
 	fieldCount := structType.NumField()
 	if 0 == fieldCount {
 		log.Println(mapper.prefix(), "IGNORING", structType.Name(), "; the struct is empty.")
@@ -245,63 +219,24 @@ func makeObject(mapper objectMap, i interface{}) (object *graphql.Object, err er
 		structField := structType.Field(i)
 		required := structField.Tag.Get("required")
 		//		log.Println(m.prefix(), thisStructName, ".", structField.Name)
-		output, face, err := mapper.goToGraph(structField, structType.Name())
+		output, _, err := mapper.goToGraph(structField, structType.Name())
 		if nil != err {
 			log.Println(mapper.prefix(),
 				thisStructName, ".", structField.Name, "IGNORING", err,
 			)
 			continue
 		}
-		var fieldResolver graphql.FieldResolveFn
-		if face {
-			fieldResolver = Face
-		}
-		substitutedTypeName, ok := structField.Tag.Lookup(SubstitutedTypeKey)
-		if ok {
-			if fn, ok := mapper.substituedTypes[substitutedTypeName]; ok {
-				fieldResolver = fn
-			}
-		} else {
-			if fn, ok := mapper.substituedTypes[structField.Type.String()]; ok {
-				fieldResolver = fn
-			}
-		}
 
-		/*
-			matched := REmor.MatchString(structField.Type.String())
-			if matched {
-				if Type, ok := structField.Tag.Lookup("type"); ok {
-					switch Type {
-					case "ManagedEntity":
-						fieldResolver = ManagedEntity
-					default:
-						fieldResolver = Mor
-					}
-				}
-			}
-		*/
 		fieldDescription := structField.Tag.Get("description")
 		if "true" == required {
 			output = graphql.NewNonNull(output)
 		}
-		if structField.Type.Name() == "AnyType" {
-			fieldResolver = AnyTypeResolver
-		}
-		/*
-			if "ManagedEntity" == structField.Name {
-				fn = resolvers.ManagedEntity
-			}
-		*/
 		fields[structField.Name] = &graphql.Field{
-			Name:    structField.Name,
-			Type:    output,
-			Resolve: fieldResolver,
-			/*
-				DeprecationReason: getTagValue(structField, "deprecationReason"),
-			*/
+			Name:        structField.Name,
+			Type:        output,
 			Description: fieldDescription,
 		}
-		log.Println(mapper.prefix(), thisStructName, ".", structField.Name, ", type:", output, ", resolver:", fieldResolver, ", required:", required)
+		log.Println(mapper.prefix(), thisStructName, ".", structField.Name, ", type:", output, ", resolver:", ", required:", required)
 	}
 	log.Println(mapper.prefix(), "end reflecting on", thisStructName)
 
@@ -321,26 +256,8 @@ func makeObject(mapper objectMap, i interface{}) (object *graphql.Object, err er
 	return object, nil
 }
 func (mapper objectMap) faceToGraph(Type reflect.Type) (output graphql.Output, err error) {
-	methodCount := Type.NumMethod()
-	if 0 == methodCount {
-		err := errors.New("IGNORING" + Type.Name() + "; the interface is empty.")
-		log.Println(mapper.prefix(), err)
-		return output, err
-	}
-	returnType1 := Type.Method(0).Type.String()
-	listWords := strings.Split(returnType1, ".")
-	if 2 > len(listWords) {
-		err := fmt.Errorf("could find the type returned by %s %s", Type.Method(0).Type.String())
-		log.Println(mapper.prefix(), err)
-		return output, err
-	}
-	typeName := listWords[1]
-	object, err := makeObject(mapper, mapper.typeReflector.GetReflectType(typeName))
-	if nil != err {
-		log.Println(mapper.prefix(), err)
-		return object, err
-	}
-	return object, err
+	output = Any
+	return
 }
 
 func (mapper objectMap) goToGraph(structField reflect.StructField, structName string) (output graphql.Output, face bool, err error) {
@@ -353,9 +270,6 @@ func (mapper objectMap) goToGraph(structField reflect.StructField, structName st
 		log.Println(mapper.prefix(), "Have de-referenced", Type.Name())
 	}
 
-	if Type.Name() == "AnyType" {
-		return graphql.String, false, nil
-	}
 	if reflect.TypeOf(primitive.ObjectID{}) == Type {
 		return BSON, false, nil
 	}
@@ -363,21 +277,6 @@ func (mapper objectMap) goToGraph(structField reflect.StructField, structName st
 		return graphql.DateTime, false, nil
 	}
 	t := Type
-
-	var mObjType reflect.Type
-	matched := REmor.MatchString(Type.String())
-	if matched {
-		moType, ok := structField.Tag.Lookup("type")
-		if ok {
-			mObjType = mapper.typeReflector.GetReflectType(moType)
-			log.Println("using", mObjType, "in place of ManagedObjectReference", structName, structField.Name)
-		}
-	}
-
-	if nil != mObjType {
-		t = mObjType
-		log.Println(mapper.prefix(), "In struct named", structName, "replaced field named", structField.Name, "of type MOR with", t)
-	}
 
 	//	log.Printf("%s: (type %s)", structName, Type.Kind().String())
 	switch Type.Kind() {
@@ -395,9 +294,7 @@ func (mapper objectMap) goToGraph(structField reflect.StructField, structName st
 	case reflect.Slice:
 		switch Type.Elem().Kind() {
 		case reflect.Struct: // is a slice of structs
-			if nil == mObjType {
-				t = Type.Elem()
-			}
+			t = Type.Elem()
 			log.Println(mapper.prefix(), t, "will be a list of struct.")
 			if 0 == t.NumField() {
 				output = graphql.NewList(Null)
