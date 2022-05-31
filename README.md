@@ -15,11 +15,11 @@ Most schemas are created well within a second.
 go get github.com/sssmack/gographql
 ```
 # Example of Usage
-` out, err := gographql.GoToGraphqlOutput(datastore.MetricsCollectionDoc{})
+`      out, err := gographql.GoToGraphqlOutput(datastore.MetricsCollectionDoc{})
       if nil != err {  
          log.Error(err)
          return
-      }     
+      } 
       QueryFields[op] = &graphql.Field{
          Type:    graphql.NewList(out),
          Resolve: perfReport,
