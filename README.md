@@ -16,7 +16,7 @@ go get github.com/sssmack/gographql
 ```
 ### Example of Usage
 ```go
- out, err := gographql.GoToGraphqlOutput(datastore.MetricsCollectionDoc{})
+      out, err := gographql.GoToGraphqlOutput(datastore.MetricsCollectionDoc{})
       if nil != err {  
          log.Error(err)
          return
