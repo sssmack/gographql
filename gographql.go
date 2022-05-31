@@ -1,3 +1,25 @@
+// package gographql translates Go struct types to Graphql types.
+/*
+Some of the notable features are:
+
+The translation can handle structs that declare fields of its own type.
+
+A field tag annotation may be used to direct the translation to use a type other than the type that the field was declared as in the structure. Use a 'replaceTypeWith' tag for that purpose.
+
+example:
+			type VirtualMachineSnapshot struct {
+				ExtensibleManagedObject
+
+				Config        types.VirtualMachineConfigInfo `mo:"config" required:"true" description:"Information about the configuration of this virtual machine when this snapshot was\n  taken.\n  \n  The datastore paths for the virtual machine disks point to the head of the disk\n  chain that represents the disk at this given snapshot. The fileInfo.fileLayout\n  field is not set."`
+				ChildSnapshot []types.ManagedObjectReference `mo:"childSnapshot" replaceTypeWith:"VirtualMachineSnapshot" required:"false" description:"All snapshots for which this snapshot is the parent.\n      \nSince vSphere API 4.1"`
+				Vm            types.ManagedObjectReference   `mo:"vm" replaceTypeWith:"VirtualMachine" required:"true" description:"The virtual machine for which the snapshot was taken.\n      \nSince vSphere API 6.0"`
+			}
+
+Tag annotations may contain a tag named 'description'.  The value will be used for the description attribute of the graphql type.
+
+
+The package uses the viper module of configuration options and logrus for logging.
+*/
 package gographql
 
 import (
@@ -21,29 +43,34 @@ import (
 type targetType int
 
 const (
-	graphqlObject targetType = iota
-	graphqlInputObject
+	graphqlOutput targetType = iota
+	graphqlInput
 )
 
+// String returns the string representation of targetType
 func (tt targetType) String() (name string) {
 	switch tt {
-	case graphqlObject:
-		name = "graphqlObject"
-	case graphqlInputObject:
-		name = "graphqlInputObject"
+	case graphqlOutput:
+		name = "graphqlOutput"
+	case graphqlInput:
+		name = "graphqlInput"
 	}
 	return
 }
 
+// ReplaceTypeWith is the name of the key for a field tag key/value pair
+// where the value names the type to substitute for the type that the field is
+// declared with in the struct type definition.
+// Use a TypeReplacer to resolve the value to the actual type.
+var ReplaceTypeWith = "replaceTypeWith"
 var (
-	REstub             = regexp.MustCompile(`(.*)Stub`)
-	RElist             = regexp.MustCompile(`\[(.*)Stub\]`)
-	RENonNull          = regexp.MustCompile(`(.*)Stub\!`)
-	REreturnsPtr       = regexp.MustCompile(`\(\) \*`)
-	objectMapper       = newTypeMapper()
-	SubstitutedTypeKey = "replaceTypeWith"
-	indentBuf          [10000]byte
-	log                = logrus.New()
+	reStub       = regexp.MustCompile(`(.*)Stub`)
+	reList       = regexp.MustCompile(`\[(.*)Stub\]`)
+	RENonNull    = regexp.MustCompile(`(.*)Stub\!`)
+	reReturnsPtr = regexp.MustCompile(`\(\) \*`)
+	objectMapper = NewTypeMapper()
+	indentBuf    [10000]byte
+	log          = logrus.New()
 )
 
 func init() {
@@ -52,39 +79,31 @@ func init() {
 	}
 }
 
-type input struct {
-	object  *graphql.InputObject
-	html    *strings.Builder
-	dataMap interface{}
-}
-
 type typeMapper struct {
 	graphqlTypes        map[string]graphql.Type
 	parentTypes         map[string]bool
 	level               uint
-	methods             map[string]string
-	indexValues         string
-	sliceDepth          uint
 	typeReplacer        TypeReplacer
 	fieldResolverFinder FieldResolverFinder
 	targetType          targetType
 }
 
-func newTypeMapper() (tm typeMapper) {
+// NewTypeMapper creates a new type mapper.
+// A type many be defined only once in a schema and so typically one type mapper is used for all
+// go struct translations that are required for the schema.
+func NewTypeMapper() (tm typeMapper) {
 	tm = typeMapper{
 		graphqlTypes:        map[string]graphql.Type{},
 		parentTypes:         map[string]bool{},
-		level:               0,
-		methods:             map[string]string{},
-		indexValues:         "abcdefghijklmnopqrstuvwzyz",
 		typeReplacer:        defaultTypeReplacer{},
 		fieldResolverFinder: defaultFieldResolverFinder{},
 	}
 	return tm
 }
 
-// FieldResolverFinder returns the graphql resolver function for the given field Type.
-// Returns nil if not reflect.Type is found for typeName.
+// A FieldResolverFinder provides the GetResolver method. Given a field type name, the method returns the graphql resolver function for that type, or nil if no function was found.
+// substituteTypeName is made available to the method.
+// Most types have built-in resolvers that translate the native code (Go) representation to a graphql representation.  A case for using this would be if there is, for example, data retrieval involved.
 type FieldResolverFinder interface {
 	GetResolver(fieldTypeName, substituteTypeName string) graphql.FieldResolveFn
 }
@@ -133,7 +152,7 @@ func (tm *typeMapper) indent() string {
 	return string(indentBuf[0 : 3*tm.level])
 }
 
-// SetDescription sets the the description for the named field of for the type.
+// SetDescription sets the field description on the given type.
 func SetDescription(graphqlType interface{}, fieldName, description string) {
 	switch object := graphqlType.(type) {
 	case *graphql.Object:
@@ -149,16 +168,16 @@ func SetDescription(graphqlType interface{}, fieldName, description string) {
 	}
 }
 
-// Object marshals a Go structure to a graphQL Object (for output).
+// GoToGraphqlOutput produces a graphql output type from a Go structure type.
 // If the structure has already been marshalled, the one that was found is returned.
-func GoToGraphqlObject(goStruct interface{}) (object *graphql.Object, err error) {
-	return objectMapper.GoToGraphqlObject(goStruct)
+func GoToGraphqlOutput(goStruct interface{}) (object *graphql.Object, err error) {
+	return objectMapper.GoToGraphqlOutput(goStruct)
 }
 
-// Object marshals a Go structure to a graphQL Object (for output).
+// GoToGraphqlOutput produces a graphql output type from a Go structure type.
 // If the structure has already been marshalled, the one that was found is returned.
-func (tm *typeMapper) GoToGraphqlObject(goStruct interface{}) (object *graphql.Object, err error) {
-	tm.targetType = graphqlObject
+func (tm *typeMapper) GoToGraphqlOutput(goStruct interface{}) (object *graphql.Object, err error) {
+	tm.targetType = graphqlOutput
 	graphqlType, err := tm.goToGraphqlType(goStruct)
 	if err != nil {
 		return
@@ -170,23 +189,23 @@ func (tm *typeMapper) GoToGraphqlObject(goStruct interface{}) (object *graphql.O
 	}
 	object, ok := graphqlType.(*graphql.Object)
 	if !ok {
-		err = fmt.Errorf("object got type %T; expected type graphql.Object", graphqlType)
+		err = fmt.Errorf("got type %T; expected type graphql.Object", graphqlType)
 		log.Error(err)
 		return
 	}
 	return
 }
 
-// InputObject marshals a Go structure to a graphQL InputObject.
+// GoToGraphqlInput produces a graphql input type from a Go structure type.
 // If the structure has already been marshalled, the one that was found is returned.
-func GoToGraphqlInputObject(goStruct interface{}) (inputObject *graphql.InputObject, err error) {
-	return objectMapper.GoToGraphqlInputObject(goStruct)
+func GoToGraphqlInput(goStruct interface{}) (inputObject *graphql.InputObject, err error) {
+	return objectMapper.GoToGraphqlInput(goStruct)
 }
 
-// InputObject marshals a Go structure to a graphQL InputObject.
+// GoToGraphqlInput produces a graphql input type from a Go structure type.
 // If the structure has already been marshalled, the one that was found is returned.
-func (tm *typeMapper) GoToGraphqlInputObject(goStruct interface{}) (inputObject *graphql.InputObject, err error) {
-	tm.targetType = graphqlInputObject
+func (tm *typeMapper) GoToGraphqlInput(goStruct interface{}) (inputObject *graphql.InputObject, err error) {
+	tm.targetType = graphqlInput
 	graphqlType, err := tm.goToGraphqlType(goStruct)
 	if err != nil {
 		return
@@ -198,9 +217,26 @@ func (tm *typeMapper) GoToGraphqlInputObject(goStruct interface{}) (inputObject 
 	}
 	inputObject, ok := graphqlType.(*graphql.InputObject)
 	if !ok {
-		err = fmt.Errorf("object got type %T; expected type graphql.InputObject", graphqlType)
+		err = fmt.Errorf("got type %T; expected type graphql.InputObject", graphqlType)
 		log.Error(err)
 		return
+	}
+	return
+}
+func getType(tm *typeMapper, typeName, kindName string) (fieldType graphql.Type, err error) {
+	fieldType, exists := tm.graphqlTypes[typeName]
+	if !exists {
+		err = fmt.Errorf(`%v %v object not found for typeName "%v"`, tm.indent(), tm.level, typeName)
+		log.Error(err)
+		return
+	}
+	if words := reList.FindStringSubmatch(kindName); nil != words {
+		typeName = words[1]
+		fieldType = graphql.NewList(fieldType)
+	}
+	if words := RENonNull.FindStringSubmatch(kindName); nil != words {
+		typeName = words[1]
+		fieldType = graphql.NewNonNull(fieldType)
 	}
 	return
 }
@@ -235,20 +271,21 @@ func (tm *typeMapper) goToGraphqlType(goStruct interface{}) (graphqlType graphql
 	}
 	structureName := structure.Name()
 	if "" == structureName {
-		err = errors.New("Names of graphql types cannot be a zero-length string; skipping - won't marshall this one.")
+		err = errors.New(`structure name cannot be ""`)
 		return
 	}
+
 	var fields interface{}
-	if tm.targetType == graphqlInputObject {
+	if tm.targetType == graphqlInput {
 		fields = graphql.InputObjectConfigFieldMap{}
 		structureName = structureName + "_Input"
 	}
 	graphqlType, defined := tm.graphqlTypes[structureName]
 	if defined {
-		log.Infof(`%vType "%v" has already been defined and so am returning that one.`, tm.indent(), structureName)
+		log.Infof(`%vType "%v" already defined; returning that one.`, tm.indent(), structureName)
 		return
 	}
-	if tm.targetType == graphqlObject {
+	if tm.targetType == graphqlOutput {
 		fields = graphql.Fields{}
 	}
 	if _, exists := tm.parentTypes[structureName]; exists { // this Type is a child of itself
@@ -257,34 +294,15 @@ func (tm *typeMapper) goToGraphqlType(goStruct interface{}) (graphqlType graphql
 			tm.indent(), structureName,
 		)
 		typeName := structureName + "Stub"
-		// every object must have at least one field.
-		fieldName := "aField"
+		fieldName := "aField" // every object must have at least one field.
 		switch fields := fields.(type) {
 		case graphql.Fields:
-			log.Infof("returning type %v", typeName)
-			fields[fieldName] = &graphql.Field{
-				Name: fieldName,
-				Type: graphql.Int,
-			}
-			graphqlType = graphql.NewObject(
-				graphql.ObjectConfig{
-					Name:   typeName,
-					Fields: fields,
-				},
-			)
+			fields[fieldName] = &graphql.Field{Name: fieldName, Type: graphql.Int}
+			graphqlType = graphql.NewObject(graphql.ObjectConfig{Name: typeName, Fields: fields})
 			tm.graphqlTypes[structureName] = graphqlType
 		case graphql.InputObjectConfigFieldMap:
-			log.Infof("returning type %v", typeName)
-			fields[fieldName] = &graphql.InputObjectFieldConfig{
-				Type:         graphql.Int,
-				DefaultValue: nil,
-			}
-			graphqlType = graphql.NewInputObject(
-				graphql.InputObjectConfig{
-					Name:   typeName,
-					Fields: fields,
-				},
-			)
+			fields[fieldName] = &graphql.InputObjectFieldConfig{Type: graphql.Int, DefaultValue: nil}
+			graphqlType = graphql.NewInputObject(graphql.InputObjectConfig{Name: typeName, Fields: fields})
 			tm.graphqlTypes[structureName] = graphqlType
 		}
 		return
@@ -303,28 +321,17 @@ func (tm *typeMapper) goToGraphqlType(goStruct interface{}) (graphqlType graphql
 				case *graphql.Object:
 					for fieldKey, fieldDef := range obj.Fields() {
 						stubbedTypeName := fieldDef.Type.Name()
-						words := REstub.FindStringSubmatch(stubbedTypeName)
+						words := reStub.FindStringSubmatch(stubbedTypeName)
 						if nil == words {
 							continue
 						}
-						if _, exists := obj.Fields()[fieldKey]; exists {
-							log.Printf("did delete %v.%v of type %v", obj.Name(), fieldKey, stubbedTypeName)
-						}
 						delete(obj.Fields(), fieldKey)
 						typeName := words[1]
-						fieldType, exists := tm.graphqlTypes[typeName]
-						if !exists {
-							log.Errorf(`%v %v object not found for typeName "%v"`, tm.indent(), tm.level, typeName)
-							continue
-						}
 						kindName := fmt.Sprintf("%v", reflect.ValueOf(fieldDef.Type))
-						if words := RElist.FindStringSubmatch(kindName); nil != words {
-							typeName = words[1]
-							fieldType = graphql.NewList(fieldType)
-						}
-						if words := RENonNull.FindStringSubmatch(kindName); nil != words {
-							typeName = words[1]
-							fieldType = graphql.NewNonNull(fieldType)
+						fieldType, err := getType(tm, typeName, kindName)
+						if nil != err {
+							log.Warn(err)
+							continue
 						}
 						obj.AddFieldConfig(
 							fieldKey,
@@ -345,28 +352,17 @@ func (tm *typeMapper) goToGraphqlType(goStruct interface{}) (graphqlType graphql
 				case *graphql.InputObject:
 					for fieldKey, fieldDef := range obj.Fields() {
 						stubbedTypeName := fieldDef.Type.Name()
-						words := REstub.FindStringSubmatch(stubbedTypeName)
+						words := reStub.FindStringSubmatch(stubbedTypeName)
 						if nil == words {
 							continue
 						}
-						if _, exists := obj.Fields()[fieldKey]; exists {
-							log.Printf("did delete %v.%v of type %v", obj.Name(), fieldKey, stubbedTypeName)
-						}
 						delete(obj.Fields(), fieldKey)
 						typeName := words[1]
-						fieldType, exists := tm.graphqlTypes[typeName]
-						if !exists {
-							log.Errorf(`%v %v object not found for typeName "%v"`, tm.indent(), tm.level, typeName)
-							continue
-						}
 						kindName := fmt.Sprintf("%v", reflect.ValueOf(fieldDef.Type))
-						if words := RElist.FindStringSubmatch(kindName); nil != words {
-							typeName = words[1]
-							fieldType = graphql.NewList(fieldType)
-						}
-						if words := RENonNull.FindStringSubmatch(kindName); nil != words {
-							typeName = words[1]
-							fieldType = graphql.NewNonNull(fieldType)
+						fieldType, err := getType(tm, typeName, kindName)
+						if nil != err {
+							log.Warn(err)
+							continue
 						}
 						obj.AddFieldConfig(
 							fieldKey,
@@ -387,13 +383,11 @@ func (tm *typeMapper) goToGraphqlType(goStruct interface{}) (graphqlType graphql
 		}
 	}()
 
-	numFields := structure.NumField()
-	log.Infof(`%vbegin reflecting on "%v"; it has %v fields`, tm.indent(), structureName, numFields)
 	numFieldsMarshalled := 0
-	for fieldNumber := 0; fieldNumber < numFields; fieldNumber++ {
+	for fieldNumber := 0; fieldNumber < structure.NumField(); fieldNumber++ {
 		structField := structure.Field(fieldNumber)
 		log.Infof("%v %v %v %v.%v", tm.indent(), tm.level, fieldNumber, structureName, structField.Name)
-		graphqlFieldType, err := tm.goFieldToGraphql(structField, structureName)
+		graphqlFieldType, err := tm.goFieldToGraphqlType(structField, structureName)
 		if nil != err {
 			log.Infof(`"%v"Ignoring "%v.%v"; reason; %v`, tm.indent(), structureName, structField.Name, err)
 			err = nil
@@ -406,8 +400,7 @@ func (tm *typeMapper) goToGraphqlType(goStruct interface{}) (graphqlType graphql
 		if required := structField.Tag.Get("required"); "true" == required && structField.Type.Kind() == reflect.Ptr {
 			graphqlFieldType = graphql.NewNonNull(graphqlFieldType)
 		}
-		substituteTypeName, _ := structField.Tag.Lookup(SubstitutedTypeKey)
-
+		substituteTypeName := structField.Tag.Get(SubstitutedTypeKey)
 		description := structField.Tag.Get("description")
 		switch fields := fields.(type) {
 		case graphql.Fields:
@@ -429,7 +422,7 @@ func (tm *typeMapper) goToGraphqlType(goStruct interface{}) (graphqlType graphql
 	}
 	log.Info(tm.indent(), "end reflecting on ", structureName)
 	if 0 == numFieldsMarshalled {
-		err = fmt.Errorf(`struct named "%v" has 0 marshalable fields; nothing to reflect on; skipping it`, structureName)
+		err = fmt.Errorf(`struct "%v" had 0 marshalable fields; skipping it`, structureName)
 		return
 	}
 	switch fields := fields.(type) {
@@ -442,17 +435,14 @@ func (tm *typeMapper) goToGraphqlType(goStruct interface{}) (graphqlType graphql
 	return
 }
 
-func (tm typeMapper) goFieldToGraphql(structField reflect.StructField, structName string) (output graphql.Output, err error) {
+func (tm typeMapper) goFieldToGraphqlType(structField reflect.StructField, structName string) (output graphql.Type, err error) {
 	structFieldType := structField.Type
 	if structFieldType.Kind() == reflect.Ptr {
 		structFieldType = structFieldType.Elem()
 	}
 
-	var substitutedType *reflect.Type
-	substituteTypeName, ok := structField.Tag.Lookup(SubstitutedTypeKey)
-	if ok {
-		substitutedType = tm.typeReplacer.GetType(substituteTypeName)
-	}
+	substituteTypeName := structField.Tag.Get(SubstitutedTypeKey)
+	substitutedType := tm.typeReplacer.GetType(substituteTypeName)
 	if nil != substitutedType {
 		log.Infof(
 			`%vIn struct named "%v", substituting type "%v" of field named "%v" with type "%v"`,
@@ -550,11 +540,9 @@ func (tm *typeMapper) kindToGraphqlScalar(kind reflect.Kind, fieldName string) (
 		fallthrough
 	case reflect.Int32:
 		scalar = graphql.Int
-		//baseInput(htmlInfo, crumbs, fieldName)
 
 	case reflect.Int64:
 		scalar = Int64
-		//baseInput(htmlInfo, crumbs, fieldName)
 
 	case reflect.Uint:
 		fallthrough
@@ -564,7 +552,6 @@ func (tm *typeMapper) kindToGraphqlScalar(kind reflect.Kind, fieldName string) (
 		fallthrough
 	case reflect.Uint32:
 		scalar = graphql.Int
-		//baseInput(htmlInfo, crumbs, fieldName)
 
 	case reflect.Uint64:
 		scalar = Uint64
@@ -574,11 +561,9 @@ func (tm *typeMapper) kindToGraphqlScalar(kind reflect.Kind, fieldName string) (
 		fallthrough
 	case reflect.Float64:
 		scalar = graphql.Float
-		//baseInput(htmlInfo, crumbs, fieldName)
 
 	case reflect.String:
 		scalar = graphql.String
-		//baseInput(htmlInfo, crumbs, fieldName)
 
 	case reflect.Complex64:
 		fallthrough
@@ -622,6 +607,7 @@ func coerceInt64(value interface{}) interface{} {
 	return nil
 }
 
+// Int64 reflects the Go Int64 to a graphql output type and vice versa.
 var Int64 = graphql.NewScalar(graphql.ScalarConfig{
 	Name:       "Int64",
 	Serialize:  coerceInt64,
@@ -637,6 +623,7 @@ var Int64 = graphql.NewScalar(graphql.ScalarConfig{
 	},
 })
 
+// ObjectID reflects the bson ObjectID to a graphql output type and vice versa.
 var ObjectID = graphql.NewScalar(graphql.ScalarConfig{
 	Name: "ObjectID",
 	Serialize: func(value interface{}) interface{} {
@@ -675,6 +662,7 @@ func coerceUint64(value interface{}) interface{} {
 	return nil
 }
 
+// Uint64 reflects the Go Uint64 kind to a graphql output type and vice versa.
 var Uint64 = graphql.NewScalar(graphql.ScalarConfig{
 	Name:       "Uint64",
 	Serialize:  coerceUint64,
@@ -690,7 +678,7 @@ var Uint64 = graphql.NewScalar(graphql.ScalarConfig{
 	},
 })
 
-// Any reflects the Go lang interface Kind as a string of JSON.
+// Any reflects the Go lang interface Kind to a string of a JSON document and vice versa.
 var Any = graphql.NewScalar(graphql.ScalarConfig{
 	Name: "Any",
 	Serialize: func(value interface{}) interface{} {
@@ -727,54 +715,6 @@ var Null = graphql.NewScalar(graphql.ScalarConfig{
 	Serialize:   null,
 	ParseValue:  null,
 	ParseLiteral: func(valueAST ast.Value) interface{} {
-		return nil
-	},
-})
-
-var BSON = graphql.NewScalar(graphql.ScalarConfig{
-	Name:        "BSON",
-	Description: "The `bson` scalar type represents a BSON Object.",
-	// Serialize serializes `primitive.ObjectID` to string.
-	Serialize: func(value interface{}) interface{} {
-		switch value := value.(type) {
-		case primitive.ObjectID:
-			return value.Hex()
-		case *primitive.ObjectID:
-			v := *value
-			return v.Hex()
-		default:
-			return nil
-		}
-	},
-	// ParseValue parses GraphQL variables from `string` to `primitive.ObjectID`.
-	ParseValue: func(value interface{}) interface{} {
-		switch value := value.(type) {
-		case string:
-			objectID, err := primitive.ObjectIDFromHex(value)
-			if nil != err {
-				log.Info(err)
-			}
-			return objectID
-		case *string:
-			objectID, err := primitive.ObjectIDFromHex(*value)
-			if nil != err {
-				log.Info(err)
-			}
-			return objectID
-		default:
-			return nil
-		}
-	},
-	// ParseLiteral parses GraphQL AST to `primitive.ObjectID`.
-	ParseLiteral: func(valueAST ast.Value) interface{} {
-		switch valueAST := valueAST.(type) {
-		case *ast.StringValue:
-			stringVal, err := primitive.ObjectIDFromHex(valueAST.Value)
-			if nil != err {
-				log.Info(err)
-			}
-			return stringVal
-		}
 		return nil
 	},
 })
