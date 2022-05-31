@@ -33,6 +33,6 @@ go get github.com/sssmack/gographql
          },    
          Description: "Reports a list of clusters that were collected on for the context.",
       }
-  
+```  
   
   *This page is a work in progress*
