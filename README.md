@@ -14,3 +14,22 @@ Most schemas are created well within a second.
 ```shell
 go get github.com/sssmack/gographql
 ```
+## Example of Usage
+` out, err := gographql.GoToGraphqlOutput(datastore.MetricsCollectionDoc{})
+      if nil != err {  
+         log.Error(err)
+         return
+      }   
+         
+      QueryFields[op] = &graphql.Field{
+         Type:    graphql.NewList(out),
+         Resolve: perfReport,
+         Args: graphql.FieldConfigArgument{
+            argName: &graphql.ArgumentConfig{
+               Type:        graphql.NewList(graphql.String),
+               Description: "A list of JSON path expressions.",
+            },
+         },    
+         Description: "Reports a list of clusters that were collected on for the context.",
+      }
+`
