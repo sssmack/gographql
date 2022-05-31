@@ -19,8 +19,8 @@ go get github.com/sssmack/gographql
       if nil != err {  
          log.Error(err)
          return
-      }   
-         
+      }
+      
       QueryFields[op] = &graphql.Field{
          Type:    graphql.NewList(out),
          Resolve: perfReport,
