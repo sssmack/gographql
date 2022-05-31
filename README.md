@@ -1,12 +1,12 @@
 # gographql
+
+
 gographql is a Go module providing a package that translates Go struct types to Graphql types.
 
 gographql tranlates Go structure types directly into graphql types.  Go structures become the schema definition.   
 Go structure tags are used to define attributes of the graphql type, e.g. the description of the field.
 Translation uses Go reflection and is quite fast.    
 Most schemas are created well within a second.
-
-
 
 
 ## Install
@@ -33,3 +33,6 @@ go get github.com/sssmack/gographql
          },    
          Description: "Reports a list of clusters that were collected on for the context.",
       }
+  
+  
+  **This page is a work in progress**
