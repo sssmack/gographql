@@ -15,7 +15,7 @@ Most schemas are created well within a second.
 go get github.com/sssmack/gographql
 ```
 # Example of Usage
-`
+```go
  out, err := gographql.GoToGraphqlOutput(datastore.MetricsCollectionDoc{})
       if nil != err {  
          log.Error(err)
