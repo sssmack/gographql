@@ -35,4 +35,4 @@ go get github.com/sssmack/gographql
       }
   
   
-  **This page is a work in progress**
+  *This page is a work in progress*
