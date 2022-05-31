@@ -1,4 +1,4 @@
-module gitlab.issaccorp.net/mda/gographql
+module github.com/sssmack/gographql
 
 go 1.16
 
