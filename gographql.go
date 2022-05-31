@@ -400,7 +400,7 @@ func (tm *typeMapper) goToGraphqlType(goStruct interface{}) (graphqlType graphql
 		if required := structField.Tag.Get("required"); "true" == required && structField.Type.Kind() == reflect.Ptr {
 			graphqlFieldType = graphql.NewNonNull(graphqlFieldType)
 		}
-		substituteTypeName := structField.Tag.Get(SubstitutedTypeKey)
+		substituteTypeName := structField.Tag.Get(ReplaceTypeWith)
 		description := structField.Tag.Get("description")
 		switch fields := fields.(type) {
 		case graphql.Fields:
@@ -441,7 +441,7 @@ func (tm typeMapper) goFieldToGraphqlType(structField reflect.StructField, struc
 		structFieldType = structFieldType.Elem()
 	}
 
-	substituteTypeName := structField.Tag.Get(SubstitutedTypeKey)
+	substituteTypeName := structField.Tag.Get(ReplaceTypeWith)
 	substitutedType := tm.typeReplacer.GetType(substituteTypeName)
 	if nil != substitutedType {
 		log.Infof(
@@ -517,7 +517,7 @@ func (tm *typeMapper) faceToAny(Type reflect.Type) (output graphql.Output, err e
 func (tm *typeMapper) kindOrTypeToGraphqlScalar(Type reflect.Type, fieldName string) (scalar *graphql.Scalar, err error) {
 	switch Type {
 	case reflect.TypeOf(primitive.ObjectID{}):
-		scalar = BSON
+		scalar = ObjectID
 		return
 	case reflect.TypeOf(time.Time{}):
 		scalar = graphql.DateTime
