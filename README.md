@@ -14,6 +14,10 @@ Most schemas are created well within a second.
 ```shell
 go get github.com/sssmack/gographql
 ```
+
+**Note:** gographql uses [Go Modules](https://github.com/golang/go/wiki/Modules) to manage dependencies.
+
+
 ### Example of Usage
 ```go
       out, err := gographql.GoToGraphqlOutput(datastore.MetricsCollectionDoc{})
