@@ -20,7 +20,7 @@ go get github.com/sssmack/gographql
 
 ### Example of Usage
 ```go
-      out, err := gographql.GoToGraphqlOutput(datastore.MetricsCollectionDoc{})
+      out, err := gographql.GoToGraphqlOutput(MetricsCollectionDoc{})
       if nil != err {  
          log.Error(err)
          return
@@ -32,7 +32,7 @@ go get github.com/sssmack/gographql
          Args: graphql.FieldConfigArgument{
             argName: &graphql.ArgumentConfig{
                Type:        graphql.NewList(graphql.String),
-               Description: "A list of JSON path expressions.",
+               Description: "A list of JSON path expressions used for selecting the context.",
             },
          },    
          Description: "Reports a list of clusters that were collected on for the context.",
