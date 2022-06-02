@@ -41,7 +41,7 @@ The viper configuration key for setting the level of logging is "GoGraphqlLogLev
 Example of using key values in struct tags:
 
 ```go 
-    type Datastore struct {
+ type Datastore struct {
 	ManagedEntity
 
 	Info              types.BaseDatastoreInfo        `mo:"info" required:"true" description:"Specific information about the datastore."`
