@@ -35,7 +35,7 @@ The resolver for fields of type interface produce/input a JSON document that is 
 
 Most Go structures are composed of other structures and scalar types and so the resolution of how to input and output the data is "built-in".  For example, if a struct is composed of some ints and strings, the functions for reading and writing those datum is built into the language already.  Sometimes there is the case when the resolver needs to be custom.  To accomplish that one may implement a FieldResolverFinder for gographql to use.  FieldResolverFinder has a method that takes the name of a field type as a string, and returns its resolver function, or nil if none was found.
 
-gographql uses viper https://github.com/spf13/viper for configuration and https://github.com/sirupsen/logrus for its logger.
+gographql uses viper [viper](https://github.com/spf13/viper) for configuration and [logrus](https://github.com/sirupsen/logrus) for its logger.
 The viper configuration key for setting the level of logging is "GoGraphqlLogLevel".
 
 Example of using key values in struct tags:
