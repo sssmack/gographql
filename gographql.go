@@ -1,24 +1,122 @@
-// package gographql translates Go struct types to Graphql types.
 /*
-Some of the notable features are:
+package gographql translates Go struct types to Graphql types.
 
-The translation can handle structs that declare fields of its own type.
+Why gographql?
 
-A field tag annotation may be used to direct the translation to use a type other than the type that the field was declared as in the structure. Use a 'replaceTypeWith' tag for that purpose.
+gographql allows the declaration of the graphql schema to be declared by the Go structures as the structures are declared in the code.  gographql uses Go reflection and so the schema is created at run-time.
 
-example:
-			type VirtualMachineSnapshot struct {
-				ExtensibleManagedObject
+gographql handles go struct types that use their own type withing their declaration.
 
-				Config        types.VirtualMachineConfigInfo `mo:"config" required:"true" description:"Information about the configuration of this virtual machine when this snapshot was\n  taken.\n  \n  The datastore paths for the virtual machine disks point to the head of the disk\n  chain that represents the disk at this given snapshot. The fileInfo.fileLayout\n  field is not set."`
-				ChildSnapshot []types.ManagedObjectReference `mo:"childSnapshot" replaceTypeWith:"VirtualMachineSnapshot" required:"false" description:"All snapshots for which this snapshot is the parent.\n      \nSince vSphere API 4.1"`
-				Vm            types.ManagedObjectReference   `mo:"vm" replaceTypeWith:"VirtualMachine" required:"true" description:"The virtual machine for which the snapshot was taken.\n      \nSince vSphere API 6.0"`
-			}
+key/value pairs in struct tags may be used to direct features of the translation process or for providing additional data to be used in the graphql type that is to be created.
 
-Tag annotations may contain a tag named 'description'.  The value will be used for the description attribute of the graphql type.
+Struct tag key/values.
+
+The value for the key named "replaceTypeWith" is a string that names a Go type that gographql will use instead of the type of the field as declared in the type struct declaration. Implement a TypeReplacer to provide a method for looking up the actual Type for the named type.
+
+The value for the key named "description" is a string that will be assigned to the description attribute of the graphql type.
+
+The value for the key named "required" is "true" or "false".  It only works with "ptr" kinds and will cause the graphql field to be declared NONNULL.
+
+Structs having no fields are not translated and so will have no equivalent field in the graphql type.
+
+Field resolver functions.
+
+The resolver for fields of type interface produce/input a JSON document that is in the form of a string. Values that are output or input will be a string of a JSON document.
+
+Most Go structures are composed of other structures and scalar types and so the resolution of how to input and output the data is "built-in".  For example, if a struct is composed of some ints and strings, the functions for reading and writing those datum is built into the language already.  Sometimes there is the case when the resolver needs to be custom.  To accomplish that one may implement a FieldResolverFinder for gographql to use.  FieldResolverFinder has a method that takes the name of a field type as a string, and returns its resolver function, or nil if none was found.
+
+gographql uses viper https://github.com/spf13/viper for configuration and https://github.com/sirupsen/logrus for its logger.
+The viper configuration key for setting the level of logging is "GoGraphqlLogLevel".
+
+Example of using key values in struct tags:
+
+ type Datastore struct {
+	ManagedEntity
+
+	Info              types.BaseDatastoreInfo        `mo:"info" required:"true" description:"Specific information about the datastore."`
+	Summary           types.DatastoreSummary         `mo:"summary" required:"true" description:"Global properties of the datastore."`
+	Host              []types.DatastoreHostMount     `mo:"host" required:"false" description:"Hosts attached to this datastore."`
+	Vm                []types.ManagedObjectReference `mo:"vm" replaceTypeWith:"VirtualMachine" required:"false" description:"Virtual machines stored on this datastore."`
+	Browser           types.ManagedObjectReference   `mo:"browser" replaceTypeWith:"HostDatastoreBrowser" required:"true" description:"DatastoreBrowser used to browse this datastore."`
+	Capability        types.DatastoreCapability      `mo:"capability" required:"true" description:"Capabilities of this datastore."`
+	IormConfiguration *types.StorageIORMInfo         `mo:"iormConfiguration" required:"false" description:"Configuration of storage I/O resource management for the datastore.\n  Currently we only support storage I/O resource management on VMFS volumes\n  of a datastore.\n  \n  This configuration may not be available if the datastore is not accessible\n  from any host, or if the datastore does not have VMFS volume.\n  The configuration can be modified using the method\n  ConfigureDatastoreIORM_Task\n      \nSince vSphere API 4.1, or if the datastore does not have VMFS volume.\n  The configuration can be modified using the method\n  ConfigureDatastoreIORM_Task\n      \nSince vSphere API 4.1, or if the datastore does not have VMFS volume.\n  The configuration can be modified using the method\n  ConfigureDatastoreIORM_Task\n      \nSince vSphere API 4.1, or if the datastore does not have VMFS volume.\n  The configuration can be modified using the method\n  ConfigureDatastoreIORM_Task\n      \nSince vSphere API 4.1"`
+ }
+
+Example of creating a graphql Output type:
 
 
-The package uses the viper module of configuration options and logrus for logging.
+	out, err := gographql.GoToGraphqlOutput(VirtualMachine{})
+	if nil != err {
+		return
+	}
+	QueryFields["VM"] = &graphql.Field{
+		Type: graphql.NewList(out),
+	}
+
+
+Example of implementing a FieldResolverFinder:
+
+ type myResolverFinder struct{}
+
+ func (mrf myResolverFinder) GetResolver(fieldType, substitutedType string) (fn graphql.FieldResolveFn) {
+	switch substitutedType {
+	case "ManagedEntity":
+		return mor
+	}
+	switch fieldType {
+	case "ManagedObjectReference":
+		return mor
+	}
+	return
+ }
+
+Configure gographql for the FieldResolverFinder:
+
+ func Init() {
+	var mrf myResolverFinder
+	gographql.SetFieldResolverFinder(mrf)
+ }
+
+Example of implementing a TypeReplacer:
+
+ import  (
+   "github.com/vmware/govmomi/vim25/mo"
+   "github.com/vmware/govmomi/vim25/types"
+ )
+ type myTypeReplacer struct{}
+
+ func (mtr myTypeReplacer) GetType(typeName string) (reflectType *reflect.Type) {
+	if len(typeName) == 0 {
+		return
+	}
+	Type, ok := mo.T[typeName]
+	if ok {
+		return &Type
+	}
+	c := types.ObjectContent{
+		Obj: types.ManagedObjectReference{Type: typeName},
+	}
+	obj, err := mo.ObjectContentToType(c)
+	if nil == err && obj != nil {
+		Type := reflect.TypeOf(obj)
+		return &Type
+	}
+
+	Type, ok = types.TypeFunc()(typeName)
+	if ok {
+		return &Type
+	}
+	return
+ }
+
+Configure gographql for a TypeReplacer:
+
+ func Init() {
+	var mtr myTypeReplacer
+	gographql.SetTypeReplacer(mtr)
+ }
+
+
 */
 package gographql
 
@@ -60,7 +158,7 @@ func (tt targetType) String() (name string) {
 
 // ReplaceTypeWith is the name of the key for a field tag key/value pair
 // where the value names the type to substitute for the type that the field is
-// declared with in the struct type definition.
+// declared with in the struct type declaration.
 // Use a TypeReplacer to resolve the value to the actual type.
 var ReplaceTypeWith = "replaceTypeWith"
 var (
@@ -77,6 +175,7 @@ func init() {
 	for i := 0; i < len(indentBuf); i++ {
 		indentBuf[i] = ' '
 	}
+	viper.SetDefault("GoGraphqlLogLevel", "error")
 }
 
 type typeMapper struct {
@@ -89,7 +188,7 @@ type typeMapper struct {
 }
 
 // NewTypeMapper creates a new type mapper.
-// A type many be defined only once in a schema and so typically one type mapper is used for all
+// A type many be declared only once in a schema and so typically one type mapper is used for all
 // go struct translations that are required for the schema.
 func NewTypeMapper() (tm typeMapper) {
 	tm = typeMapper{
