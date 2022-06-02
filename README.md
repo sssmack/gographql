@@ -17,9 +17,9 @@ go get github.com/sssmack/gographql
 
 gographql handles go struct types that use their own type withing their declaration.
 
-key/value pairs in struct tags may be used to direct features of the translation process or for providing additional data to be used in the graphql type that is to be created.
-
 ### Struct tag key/values.
+
+key/value pairs in struct tags may be used to direct features of the translation process or for providing additional data to be used in the graphql type that is to be created.
 
 The value for the key named "replaceTypeWith" is a string that names a Go type that gographql will use instead of the type of the field as declared in the type struct declaration. Implement a TypeReplacer to provide a method for looking up the actual Type for the named type.
 
