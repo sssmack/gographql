@@ -21,11 +21,11 @@ gographql handles go struct types that use their own type withing their declarat
 
 key/value pairs in struct tags may be used to direct features of the translation process or for providing additional data to be used in the graphql type that is to be created.
 
-The value for the key named "replaceTypeWith" is a string that names a Go type that gographql will use instead of the type of the field as declared in the type struct declaration. Implement a TypeReplacer to provide a method for looking up the actual Type for the named type.
+* The value for the key named "replaceTypeWith" is a string that names a Go type that gographql will use instead of the type of the field as declared in the type struct declaration. Implement a TypeReplacer to provide a method for looking up the actual Type for the named type.
 
-The value for the key named "description" is a string that will be assigned to the description attribute of the graphql type.
+* The value for the key named "description" is a string that will be assigned to the description attribute of the graphql type.
 
-The value for the key named "required" is "true" or "false".  It only works with "ptr" kinds and will cause the graphql field to be declared NONNULL.
+* The value for the key named "required" is "true" or "false".  It only works with "ptr" kinds and will cause the graphql field to be declared NONNULL.
 
 Structs having no fields are not translated and so will have no equivalent field in the graphql type.
 
