@@ -40,7 +40,8 @@ The viper configuration key for setting the level of logging is "GoGraphqlLogLev
 
 Example of using key values in struct tags:
 
-```go type Datastore struct {
+```go 
+    type Datastore struct {
 	ManagedEntity
 
 	Info              types.BaseDatastoreInfo        `mo:"info" required:"true" description:"Specific information about the datastore."`
@@ -51,9 +52,10 @@ Example of using key values in struct tags:
 	Capability        types.DatastoreCapability      `mo:"capability" required:"true" description:"Capabilities of this datastore."`
 	IormConfiguration *types.StorageIORMInfo         `mo:"iormConfiguration" required:"false" description:"Configuration of storage I/O resource management for the datastore.\n  Currently we only support storage I/O resource management on VMFS volumes\n  of a datastore.\n  \n  This configuration may not be available if the datastore is not accessible\n  from any host, or if the datastore does not have VMFS volume.\n  The configuration can be modified using the method\n  ConfigureDatastoreIORM_Task\n      \nSince vSphere API 4.1, or if the datastore does not have VMFS volume.\n  The configuration can be modified using the method\n  ConfigureDatastoreIORM_Task\n      \nSince vSphere API 4.1, or if the datastore does not have VMFS volume.\n  The configuration can be modified using the method\n  ConfigureDatastoreIORM_Task\n      \nSince vSphere API 4.1, or if the datastore does not have VMFS volume.\n  The configuration can be modified using the method\n  ConfigureDatastoreIORM_Task\n      \nSince vSphere API 4.1"`
  }
+```
+Example of creating a graphql Output type:   
 
-Example of creating a graphql Output type:
-
+```go
 
 	out, err := gographql.GoToGraphqlOutput(VirtualMachine{})
 	if nil != err {
