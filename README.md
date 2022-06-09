@@ -10,7 +10,7 @@ One is to remove schema definition and Go code generators from the development p
 
 The second goal is to enable the developer to express the graphql type directly in the Go struct, as they develop.  That seems to lead to a more natural, and efficient code development experience because the developer just creates the struct, and optionally "adorns" the field tags with key/values that translate to graphql type features. Graphql and Go development can happen in one place -- in the Go code.
 
-The idea of creating a schema definition file seems to make sense for the case of more than one programming language being used against it.  How common is that case?
+The idea of creating a schema definition file seems to make sense for the case when more than one programming language is being used against it.  I wonder how common is that.
 
 
 **Note:** gographql uses [Go Modules](https://github.com/golang/go/wiki/Modules) to manage dependencies.
@@ -39,7 +39,7 @@ Structs having no fields are not translated and so will have no equivalent field
 
 The resolver for fields of type interface produce/input a JSON document that is in the form of a string. 
 
-Most Go structures are composed of other structures and scalar types and so the resolution of how to input and output the data is "built-in".  For example, a struct is composed of some ints and strings, the functions for reading and writing those datum are built into the language already.  Sometimes there is the case when the resolver of an Output type needs to be custom.  To accomplish that, one may implement a FieldResolverFinder for gographql to use.  FieldResolverFinder has a method that takes the name of a field type as a string, and returns its resolver function, or nil if none was found.
+Most Go structures are composed of other structures and scalar types.  In most cases, everything finally resolves to a scalar type that has functions for input/output "built-in".  Sometimes there is the case when the resolver of an Output type needs to be custom.  To accomplish that, one may implement a FieldResolverFinder for gographql to use.  FieldResolverFinder has a method that takes the name of a field type as a string, and returns its resolver function, or nil if none was found.
 
 gographql uses [viper](https://github.com/spf13/viper) for configuration and [logrus](https://github.com/sirupsen/logrus) for its logger.
 The viper configuration key for setting the level of logging is "GoGraphqlLogLevel".
