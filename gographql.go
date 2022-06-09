@@ -3,15 +3,21 @@ package gographql translates Go struct types to Graphql types.
 
 Why gographql?
 
-gographql allows the declaration of the graphql schema to be declared by the Go structures as the structures are declared in the code.  gographql uses Go reflection and so the schema is created at run-time.
+The goals of gographql are two-fold
 
-gographql handles go struct types that use their own type withing their declaration.
+One is to remove schema definition and Go code generators from the development process. These generators take a schema definition as input and create Go structures and Go code for representing those as graphql types, etc.  The generation process creates alot of code that can take a long time to compile (minutes); causing development iterations to have a long duration.
+
+The second goal is to enable the developer to express the graphql type directly in the Go struct, as they develop.  That seems to lead to a more natural, and efficient code development experience because the developer just creates the struct, with its graphql "adornments" and then use that, with gographql, as they develop.
+
+The idea of creating a schema definition file seems to make sense if more than one programming language is being used against it.  That case would seem quite rare.
+
+gographql handles go struct types that use their own type within their declaration.
+
+Struct tag key values
 
 key/value pairs in struct tags may be used to direct features of the translation process or for providing additional data to be used in the graphql type that is to be created.
 
-Struct tag key/values.
-
-The value for the key named "replaceTypeWith" is a string that names a Go type that gographql will use instead of the type of the field as declared in the type struct declaration. Implement a TypeReplacer to provide a method for looking up the actual Type for the named type.
+The value for the key named "replaceTypeWith" is a string that names a Go type that gographql will use instead of the type of the field as declared in the structure. Implement a TypeReplacer to provide a method for looking up the actual Type for the named type.
 
 The value for the key named "description" is a string that will be assigned to the description attribute of the graphql type.
 
@@ -19,13 +25,14 @@ The value for the key named "required" is "true" or "false".  It only works with
 
 Structs having no fields are not translated and so will have no equivalent field in the graphql type.
 
-Field resolver functions.
+Field resolver functions
 
-The resolver for fields of type interface produce/input a JSON document that is in the form of a string. Values that are output or input will be a string of a JSON document.
+The resolver for fields of type interface produce/input a JSON document that is in the form of a string.
 
-Most Go structures are composed of other structures and scalar types and so the resolution of how to input and output the data is "built-in".  For example, if a struct is composed of some ints and strings, the functions for reading and writing those datum is built into the language already.  Sometimes there is the case when the resolver needs to be custom.  To accomplish that one may implement a FieldResolverFinder for gographql to use.  FieldResolverFinder has a method that takes the name of a field type as a string, and returns its resolver function, or nil if none was found.
+Most Go structures are composed of other structures and scalar types and so the resolution of how to input and output the data is "built-in".  For example, if a struct is composed of some ints and strings, the functions for reading and writing those datum are built into the language already.  Sometimes there is the case when the resolver for the output type needs to be custom.  To accomplish that, one may implement a FieldResolverFinder for gographql to use.  FieldResolverFinder has a method that takes the name of a field type as a string, and returns its resolver function, or nil if none was found.
 
-gographql uses viper https://github.com/spf13/viper for configuration and https://github.com/sirupsen/logrus for its logger.
+gographql uses viper for configuration and logrus for its logger.
+
 The viper configuration key for setting the level of logging is "GoGraphqlLogLevel".
 
 Example of using key values in struct tags:
@@ -44,7 +51,6 @@ Example of using key values in struct tags:
 
 Example of creating a graphql Output type:
 
-
 	out, err := gographql.GoToGraphqlOutput(VirtualMachine{})
 	if nil != err {
 		return
@@ -52,7 +58,6 @@ Example of creating a graphql Output type:
 	QueryFields["VM"] = &graphql.Field{
 		Type: graphql.NewList(out),
 	}
-
 
 Example of implementing a FieldResolverFinder:
 
@@ -115,7 +120,6 @@ Configure gographql for a TypeReplacer:
 	var mtr myTypeReplacer
 	gographql.SetTypeReplacer(mtr)
  }
-
 
 */
 package gographql
@@ -202,7 +206,7 @@ func NewTypeMapper() (tm typeMapper) {
 
 // A FieldResolverFinder provides the GetResolver method. Given a field type name, the method returns the graphql resolver function for that type, or nil if no function was found.
 // substituteTypeName is made available to the method.
-// Most types have built-in resolvers that translate the native code (Go) representation to a graphql representation.  A case for using this would be if there is, for example, data retrieval involved.
+// Most types have built-in resolvers that translate the native code (Go) representation to a graphql representation.  A case for using this would be if there is, for example, data retrieval involved on an Output type.
 type FieldResolverFinder interface {
 	GetResolver(fieldTypeName, substituteTypeName string) graphql.FieldResolveFn
 }
@@ -251,7 +255,7 @@ func (tm *typeMapper) indent() string {
 	return string(indentBuf[0 : 3*tm.level])
 }
 
-// SetDescription sets the field description on the given type.
+// SetDescription sets the description for the given field name.
 func SetDescription(graphqlType interface{}, fieldName, description string) {
 	switch object := graphqlType.(type) {
 	case *graphql.Object:
@@ -540,13 +544,23 @@ func (tm typeMapper) goFieldToGraphqlType(structField reflect.StructField, struc
 		structFieldType = structFieldType.Elem()
 	}
 
+	t := structFieldType
 	substituteTypeName := structField.Tag.Get(ReplaceTypeWith)
 	substitutedType := tm.typeReplacer.GetType(substituteTypeName)
 	if nil != substitutedType {
+		t = *substitutedType
 		log.Infof(
 			`%vIn struct named "%v", substituting type "%v" of field named "%v" with type "%v"`,
 			tm.indent(), structName, structFieldType.Name(), structField.Name, (*substitutedType).Name(),
 		)
+	}
+	switch t {
+	case reflect.TypeOf(primitive.ObjectID{}):
+		output = ObjectID
+		return
+	case reflect.TypeOf(time.Time{}):
+		output = graphql.DateTime
+		return
 	}
 
 	switch structFieldType.Kind() {
@@ -578,7 +592,7 @@ func (tm typeMapper) goFieldToGraphqlType(structField reflect.StructField, struc
 			output = graphql.NewList(output)
 			return
 		default:
-			output, err = tm.kindOrTypeToGraphqlScalar(structFieldType, structField.Name)
+			output, err = tm.kindToGraphqlScalar(structFieldType.Kind(), structField.Name)
 			if nil != err {
 				return
 			}
@@ -595,7 +609,7 @@ func (tm typeMapper) goFieldToGraphqlType(structField reflect.StructField, struc
 	if nil != substitutedType {
 		structFieldType = *substitutedType
 	}
-	output, err = tm.kindOrTypeToGraphqlScalar(structFieldType, structField.Name)
+	output, err = tm.kindToGraphqlScalar(structFieldType.Kind(), structField.Name)
 	return
 }
 
@@ -611,18 +625,6 @@ func (tm *typeMapper) faceToAny(Type reflect.Type) (output graphql.Output, err e
 	}
 	output = Any
 	return
-}
-
-func (tm *typeMapper) kindOrTypeToGraphqlScalar(Type reflect.Type, fieldName string) (scalar *graphql.Scalar, err error) {
-	switch Type {
-	case reflect.TypeOf(primitive.ObjectID{}):
-		scalar = ObjectID
-		return
-	case reflect.TypeOf(time.Time{}):
-		scalar = graphql.DateTime
-		return
-	}
-	return tm.kindToGraphqlScalar(Type.Kind(), fieldName)
 }
 
 func (tm *typeMapper) kindToGraphqlScalar(kind reflect.Kind, fieldName string) (scalar *graphql.Scalar, err error) {
