@@ -62,12 +62,11 @@ Example of using key values in struct tags:
 Example of creating a graphql Output type:   
 
 ```go
-
-	out, err := gographql.GoToGraphqlOutput(VirtualMachine{})
+	out, err := gographql.GoToGraphqlOutput(Datastore{})
 	if nil != err {
 		return
 	}
-	QueryFields["VM"] = &graphql.Field{
+	QueryFields["Datastore"] = &graphql.Field{
 		Type: graphql.NewList(out),
 	}
 ```
