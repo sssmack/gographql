@@ -4,24 +4,30 @@ package gographql translates Go struct types to Graphql types.
 
 Why gographql?
 
-gographql allows the declaration of the graphql schema to be declared by the Go structures as the structures are declared in the code.  gographql uses Go reflection and so the schema is created at run-time.
+The goals of gographql are two-fold.   
 
+One is to remove schema definition and Go code generators from the development process. These generators take a schema definition as input and create Go structures and Go code for representing those as graphql types, etc.  The generation process creates alot of code that can take a long time to compile (minutes); causing development iterations to have a long duration. 
+
+The second goal is to enable the developer to express the graphql type directly in the Go struct, as they develop.  That seems to lead to a more natural, and efficient code development experience because the developer just creates the struct, with its graphql "adornments" and then use that, with gographql, as they develop.   
+
+The idea of creating a schema definition file seems to make sense if more than one programming language is being used against it.  That case would seem quite rare.
+
+
+**Note:** gographql uses [Go Modules](https://github.com/golang/go/wiki/Modules) to manage dependencies.
 
 ## Install
 
 ```shell
-go get github.com/sssmack/gographql
+go get gitlab.issaccorp.net/mda/gographql
 ```
 
-**Note:** gographql uses [Go Modules](https://github.com/golang/go/wiki/Modules) to manage dependencies.
+gographql handles go struct types that use their own type within their declaration.
 
-gographql handles go struct types that use their own type withing their declaration.
-
-### Struct tag key/values.
+### Struct tag key/values
 
 key/value pairs in struct tags may be used to direct features of the translation process or for providing additional data to be used in the graphql type that is to be created.
 
-* The value for the key named "replaceTypeWith" is a string that names a Go type that gographql will use instead of the type of the field as declared in the type struct declaration. Implement a TypeReplacer to provide a method for looking up the actual Type for the named type.
+* The value for the key named "replaceTypeWith" is a string that names a Go type that gographql will use instead of the type of the field as declared in the struct. Implement a TypeReplacer to provide a method for looking up the actual Type for the named type.
 
 * The value for the key named "description" is a string that will be assigned to the description attribute of the graphql type.
 
@@ -29,13 +35,13 @@ key/value pairs in struct tags may be used to direct features of the translation
 
 Structs having no fields are not translated and so will have no equivalent field in the graphql type.
 
-### Field resolver functions.
+### Field resolver functions
 
-The resolver for fields of type interface produce/input a JSON document that is in the form of a string. Values that are output or input will be a string of a JSON document.
+The resolver for fields of type interface produce/input a JSON document that is in the form of a string. 
 
-Most Go structures are composed of other structures and scalar types and so the resolution of how to input and output the data is "built-in".  For example, if a struct is composed of some ints and strings, the functions for reading and writing those datum is built into the language already.  Sometimes there is the case when the resolver needs to be custom.  To accomplish that one may implement a FieldResolverFinder for gographql to use.  FieldResolverFinder has a method that takes the name of a field type as a string, and returns its resolver function, or nil if none was found.
+Most Go structures are composed of other structures and scalar types and so the resolution of how to input and output the data is "built-in".  For example, a struct is composed of some ints and strings, the functions for reading and writing those datum are built into the language already.  Sometimes there is the case when the resolver of an Output type needs to be custom.  To accomplish that, one may implement a FieldResolverFinder for gographql to use.  FieldResolverFinder has a method that takes the name of a field type as a string, and returns its resolver function, or nil if none was found.
 
-gographql uses viper [viper](https://github.com/spf13/viper) for configuration and [logrus](https://github.com/sirupsen/logrus) for its logger.
+gographql uses [viper](https://github.com/spf13/viper) for configuration and [logrus](https://github.com/sirupsen/logrus) for its logger.
 The viper configuration key for setting the level of logging is "GoGraphqlLogLevel".
 
 Example of using key values in struct tags:
@@ -67,6 +73,7 @@ Example of creating a graphql Output type:
 ```
 
 Example of implementing a FieldResolverFinder:
+
 ```go
  type myResolverFinder struct{}
 
@@ -83,6 +90,7 @@ Example of implementing a FieldResolverFinder:
  }
 ```
 Configure gographql for the FieldResolverFinder:
+
 ```go
  func Init() {
 	var mrf myResolverFinder
@@ -90,6 +98,7 @@ Configure gographql for the FieldResolverFinder:
  }
 ```
 Example of implementing a TypeReplacer:
+
 ```go
  import  (
    "github.com/vmware/govmomi/vim25/mo"
@@ -122,11 +131,10 @@ Example of implementing a TypeReplacer:
  }
 ```
 Configure gographql for a TypeReplacer:
+
 ```go
  func Init() {
 	var mtr myTypeReplacer
 	gographql.SetTypeReplacer(mtr)
  }
 ```
-
-
