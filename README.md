@@ -18,7 +18,7 @@ The idea of creating a schema definition file seems to make sense for the case w
 ## Install
 
 ```shell
-go get github.com/sssmack/gographql.git
+go install github.com/sssmack/gographql.git@latest
 ```
 The "main" branch is a development branch.  Use the git tags to get a particular verson.
 
