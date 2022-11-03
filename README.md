@@ -75,6 +75,9 @@ Example of creating a graphql Output type:
 Example of implementing a FieldResolverFinder:
 
 ```go
+
+func mor(){}
+
  type myResolverFinder struct{}
 
  func (mrf myResolverFinder) GetResolver(fieldType, substitutedType string) (fn graphql.FieldResolveFn) {
