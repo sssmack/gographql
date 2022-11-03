@@ -44,6 +44,11 @@ The resolver for fields of type interface produce/input a JSON document that is 
 
 Most Go structures are composed of other structures and scalar types.  In most cases, everything finally resolves to a scalar type that has functions for input/output "built-in".  Sometimes there is the case when the resolver of an Output type needs to be custom.  To accomplish that, one may implement a FieldResolverFinder for gographql to use.  FieldResolverFinder has a method that takes the name of a field type as a string, and returns its resolver function, or nil if none was found.
 
+Struct tag keys that may be used by gographql:
+* required
+* description
+* replaceTypeWith
+
 
 Example of using key values in struct tags:
 
