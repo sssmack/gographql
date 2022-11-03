@@ -76,7 +76,7 @@ Example of implementing a FieldResolverFinder:
 
 ```go
 
- func mor(){}
+ func mor() graphql.FieldResolveFn {}
 
  type myResolverFinder struct{}
 
