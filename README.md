@@ -18,7 +18,7 @@ The idea of creating a schema definition file seems to make sense for the case w
 ## Install
 
 ```shell
-go get https://github.com/sssmack/gographql.git
+go get github.com/sssmack/gographql.git
 ```
 
 gographql handles go struct types that use their own type within their declaration.
