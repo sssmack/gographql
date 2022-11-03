@@ -122,8 +122,8 @@ Example of implementing a TypeReplacer:
 	}
 	obj, err := mo.ObjectContentToType(c)
 	if nil == err && obj != nil {
-		Type := reflect.TypeOf(obj)
-		return &Type
+		thisType := reflect.TypeOf(obj)
+		return &thisType
 	}
 
 	Type, ok = types.TypeFunc()(typeName)
