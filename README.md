@@ -94,7 +94,7 @@ Example of implementing a FieldResolverFinder:
 	return
  }
 ```
-Configure gographql for the FieldResolverFinder:
+Configure gographql for a FieldResolverFinder; implement() and Init in your code:
 
 ```go
  func Init() {
