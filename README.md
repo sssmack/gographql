@@ -6,9 +6,9 @@ Why gographql?
 
 The goals of gographql are two-fold.   
 
-One is to remove schema definition and Go code generators from the development process. These generators take a schema definition as input and create Go structures and Go code for representing those as graphql types, etc.  The generation process creates alot of code that can take a long time to compile (minutes); causing development iterations to have a long duration. 
+One is to remove schema definition and Go code generators from the development workflow. TGenerators take a schema definition as input and create Go structures and Go code for representing those as graphql types, etc.  The generation process creates alot of code that can take a long time to compile (minutes); causing development iterations to have a long duration. 
 
-The second goal is to enable the developer to express the graphql type directly in the Go struct, as they develop.  That seems to lead to a more natural, and efficient code development experience because the developer just creates the struct, and optionally "adorns" the field tags with key/values that translate to graphql type features. Graphql and Go development can happen in one place -- in the Go code.
+The second goal is to enable the developer to express the graphql type directly in the Go struct; as they develop.  That seems to lead to a more natural, and efficient code development experience because the developer just creates the struct, and optionally "adorns" the field tags with key/values that translate to graphql type features. Graphql and Go development can happen in one place -- in the Go code.
 
 The idea of creating a schema definition file seems to make sense for the case when more than one programming language is being used against it.  I wonder how common is that.
 
@@ -21,7 +21,7 @@ The idea of creating a schema definition file seems to make sense for the case w
 go get github.com/sssmack/gographql.git
 ```
 
-gographql handles go struct types that use their own type within their declaration.
+gographql handles go struct types that use their own type within their declaration (recursion).
 
 gographql uses [viper](https://github.com/spf13/viper) for configuration and [logrus](https://github.com/sirupsen/logrus) for its logger.
 The viper configuration key for setting the level of logging is "GoGraphqlLogLevel".
@@ -43,12 +43,6 @@ Structs having no fields are not translated and so will have no equivalent field
 The resolver for fields of type interface produce/input a JSON document that is in the form of a string. 
 
 Most Go structures are composed of other structures and scalar types.  In most cases, everything finally resolves to a scalar type that has functions for input/output "built-in".  Sometimes there is the case when the resolver of an Output type needs to be custom.  To accomplish that, one may implement a FieldResolverFinder for gographql to use.  FieldResolverFinder has a method that takes the name of a field type as a string, and returns its resolver function, or nil if none was found.
-
-Struct tag keys that may be used by gographql:
-* required
-* description
-* replaceTypeWith
-
 
 Example of using key values in struct tags:
 
