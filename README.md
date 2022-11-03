@@ -20,6 +20,7 @@ The idea of creating a schema definition file seems to make sense for the case w
 ```shell
 go get github.com/sssmack/gographql.git
 ```
+The "main" branch is a development branch.  Use the git tags to get a particular verson.
 
 gographql handles go struct types that use their own type within their declaration (recursion).
 
