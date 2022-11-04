@@ -6,7 +6,7 @@ Why gographql?
 
 The goals of gographql are two-fold.   
 
-One is to remove schema definition and Go code generators from the development workflow. TGenerators take a schema definition as input and create Go structures and Go code for representing those as graphql types, etc.  The generation process creates alot of code that can take a long time to compile (minutes); causing development iterations to have a long duration. 
+One is to remove schema definition and Go code generators from the development workflow. Generators take a schema definition as input and create Go structures and Go code for representing those as graphql types, etc.  The generation process creates alot of code that can take a long time to compile (minutes); causing development iterations to have a long duration. 
 
 Second is to enable the developer to express the graphql type directly in the Go struct; as they develop.  That seems to lead to a more natural, and efficient code development experience because the developer just creates the struct, and optionally "adorns" the field tags with key/values that translate to graphql type features. Graphql and Go development can happen in one place -- in the Go code.
 
